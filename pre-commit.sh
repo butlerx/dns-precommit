@@ -30,7 +30,7 @@ if git rev-parse --is-inside-work-tree && [ "$(git symbolic-ref HEAD | sed 's!re
       SERIAL=$OLDSERIAL
       continue
     fi
-    sed -n '/^@/,/^[^;]*)/H;${;x;s/.*@[^(]*([^0-9]*//;s/[^0-9].*/'"${SERIAL}"'/;p;}' "$f" >"$TMP/$f"
+    sed 's/'"${OLDSERIAL}"'/'"${SERIAL}"'/' "$f" > "$TMP/$f"
     if named-checkconf "$TMP/$f"; then
       cp "$TMP/$f" "$f"
       # were there actually changes?
