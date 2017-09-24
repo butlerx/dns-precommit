@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-
+# Increamet dns serial after config change
+# place in .git/hooks/pre-commit
 set -e
 
 if [ -z "$GIT_DIR" ]; then
@@ -9,21 +10,12 @@ fi
 
 if git rev-parse --is-inside-work-tree && [ "$(git symbolic-ref HEAD | sed 's!refs\/heads\/!!')" == "master" ]; then
   DATE=$(date '+%Y%m%d')
-  IFS=$'\n'
-  TMP=$(mktemp -dt)
-  LASTMERGE=$(git rev-parse head~2)
-  for f in $(git diff --name-only "$LASTMERGE" HEAD); do
+  TMP=$(mktemp -d)
+  for f in $({ git diff --name-only ; git diff --name-only --staged ; } | sort | uniq); do
     echo "doing $f"
     # extract the date from the zone file
-    OLDSERIAL=$(sed -n '/IN[[:space:]]\+SOA/,/)/ {
-      : attempt
-      s/.*([\n\t ]*\([[:digit:]]\+\).*/\1/
-      t done
-      N
-      b attempt
-      : done
-      p
-    }' "$f")
+    OLDSERIAL=$(sed -n '/^@/,/^[^;]*)/H;${;x;s/.*@[^(]*([^0-9]*//;s/[^0-9].*//;p;}' "$f")
+    echo "$OLDSERIAL"
     OLDDATE=$(echo "$OLDSERIAL" | cut -c1-8)
     OLDCOUNT=$(echo "$OLDSERIAL" | cut -c9-)
     if (( "$DATE" > "$OLDDATE" )); then
@@ -38,14 +30,7 @@ if git rev-parse --is-inside-work-tree && [ "$(git symbolic-ref HEAD | sed 's!re
       SERIAL=$OLDSERIAL
       continue
     fi
-    sed -e '/IN[[:space:]]\+SOA/,/)/ {
-      : attempt
-      s/\(([\n\t ]*\)[[:digit:]]\+/\1'"${SERIAL}"'/
-      t done
-      N
-      b attempt
-      : done
-    }' "$f" >"$TMP/$f"
+    sed -n '/^@/,/^[^;]*)/H;${;x;s/.*@[^(]*([^0-9]*//;s/[^0-9].*/'"${SERIAL}"'/;p;}' "$f" >"$TMP/$f"
     if named-checkconf "$TMP/$f"; then
       cp "$TMP/$f" "$f"
       # were there actually changes?
@@ -55,7 +40,6 @@ if git rev-parse --is-inside-work-tree && [ "$(git symbolic-ref HEAD | sed 's!re
     fi
   done
   rm -rf "$TMP"
-  git commit -m 'Update serials '"$SERIAL"' (pre-commit script)'
   rndc reload
 fi
 exit 0
