@@ -43,6 +43,7 @@ if git rev-parse --is-inside-work-tree && [ "$(git symbolic-ref HEAD | sed 's!re
 		fi
 	done
 	rm -rf "$TMP"
+	named-checkconf /etc/named.conf
 	rndc reload
 fi
 exit 0
